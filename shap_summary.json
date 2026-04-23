@@ -1,0 +1,180 @@
+{
+  "study1": {
+    "top_global": [
+      {
+        "feature_pretty": "Pre-op MIO",
+        "mean_abs_shap": 0.2273933269324337
+      },
+      {
+        "feature_pretty": "Pre-op diet",
+        "mean_abs_shap": 0.04782915999897978
+      },
+      {
+        "feature_pretty": "Age",
+        "mean_abs_shap": 0.0461110440587092
+      },
+      {
+        "feature_pretty": "Joint noise",
+        "mean_abs_shap": 0.030141381677989194
+      },
+      {
+        "feature_pretty": "Site",
+        "mean_abs_shap": 0.017186712972396795
+      },
+      {
+        "feature_pretty": "Joint pain",
+        "mean_abs_shap": 0.016860143217624163
+      },
+      {
+        "feature_pretty": "Directional limitation",
+        "mean_abs_shap": 0.012248318575947725
+      },
+      {
+        "feature_pretty": "Gender",
+        "mean_abs_shap": 0.009870579120937906
+      },
+      {
+        "feature_pretty": "Pre-op meds",
+        "mean_abs_shap": 0.007056033873680895
+      },
+      {
+        "feature_pretty": "Muscle pain",
+        "mean_abs_shap": 0.004178653834335503
+      }
+    ],
+    "representative_index": 119,
+    "representative_probability": 0.49942703540830125,
+    "representative_target": 1,
+    "representative_top_local": [
+      {
+        "feature_pretty": "Pre-op MIO",
+        "shap_value": -0.20642232580567255
+      },
+      {
+        "feature_pretty": "Age",
+        "shap_value": 0.07569530772365007
+      },
+      {
+        "feature_pretty": "Pre-op diet",
+        "shap_value": 0.04498938061026429
+      },
+      {
+        "feature_pretty": "Site",
+        "shap_value": 0.031510053406945876
+      },
+      {
+        "feature_pretty": "Directional limitation",
+        "shap_value": 0.026873920490282265
+      },
+      {
+        "feature_pretty": "Muscle pain",
+        "shap_value": 0.019224030814578925
+      },
+      {
+        "feature_pretty": "Gender",
+        "shap_value": 0.015687461205669193
+      },
+      {
+        "feature_pretty": "Joint noise",
+        "shap_value": -0.00831357273203338
+      },
+      {
+        "feature_pretty": "Pre-op meds",
+        "shap_value": 0.005368856250679033
+      },
+      {
+        "feature_pretty": "Joint pain",
+        "shap_value": -0.0015922558009364872
+      }
+    ]
+  },
+  "study2": {
+    "top_global": [
+      {
+        "feature_pretty": "Age",
+        "mean_abs_shap": 0.11271495524725186
+      },
+      {
+        "feature_pretty": "Pre-op diet",
+        "mean_abs_shap": 0.06526728579678602
+      },
+      {
+        "feature_pretty": "Site",
+        "mean_abs_shap": 0.034977040344337
+      },
+      {
+        "feature_pretty": "Pre-op MIO",
+        "mean_abs_shap": 0.03436373861786889
+      },
+      {
+        "feature_pretty": "Joint noise",
+        "mean_abs_shap": 0.03141804200063325
+      },
+      {
+        "feature_pretty": "Joint pain",
+        "mean_abs_shap": 0.020495462462213992
+      },
+      {
+        "feature_pretty": "Gender",
+        "mean_abs_shap": 0.013316294972518248
+      },
+      {
+        "feature_pretty": "Pre-op meds",
+        "mean_abs_shap": 0.010581081415993026
+      },
+      {
+        "feature_pretty": "Muscle pain",
+        "mean_abs_shap": 0.0098834706979964
+      },
+      {
+        "feature_pretty": "Directional limitation",
+        "mean_abs_shap": 0.00838630917283601
+      }
+    ],
+    "representative_index": 153,
+    "representative_probability": 0.5028336471968265,
+    "representative_target": 1,
+    "representative_top_local": [
+      {
+        "feature_pretty": "Site",
+        "shap_value": -0.05909516200927738
+      },
+      {
+        "feature_pretty": "Pre-op MIO",
+        "shap_value": 0.04827479590360432
+      },
+      {
+        "feature_pretty": "Joint pain",
+        "shap_value": -0.042903697027959764
+      },
+      {
+        "feature_pretty": "Joint noise",
+        "shap_value": 0.03994742158767458
+      },
+      {
+        "feature_pretty": "Pre-op diet",
+        "shap_value": 0.03291811944746391
+      },
+      {
+        "feature_pretty": "Muscle pain",
+        "shap_value": -0.022931826946995165
+      },
+      {
+        "feature_pretty": "Age",
+        "shap_value": -0.019434587424578077
+      },
+      {
+        "feature_pretty": "Directional limitation",
+        "shap_value": 0.013295942062584231
+      },
+      {
+        "feature_pretty": "Gender",
+        "shap_value": 0.012570914336072346
+      },
+      {
+        "feature_pretty": "Pre-op meds",
+        "shap_value": 0.004926142902480308
+      }
+    ]
+  }
+}

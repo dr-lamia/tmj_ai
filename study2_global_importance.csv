@@ -1,0 +1,11 @@
+feature,mean_abs_shap,feature_pretty
+age_years,0.11271495524725186,Age
+diet_preop_clean,0.06526728579678602,Pre-op diet
+site_clean,0.034977040344337,Site
+pre_mio_mm,0.03436373861786889,Pre-op MIO
+pre_joint_noise_present,0.03141804200063325,Joint noise
+pre_joint_pain_present,0.020495462462213992,Joint pain
+gender_clean,0.013316294972518248,Gender
+meds_preop_clean,0.010581081415993026,Pre-op meds
+pre_muscle_pain_present,0.0098834706979964,Muscle pain
+pre_mahan_dir_present,0.00838630917283601,Directional limitation
