@@ -1,4 +1,3 @@
-
 import json
 from pathlib import Path
 
@@ -41,7 +40,10 @@ PRETTY_NAME_MAP = {
 
 
 def find_file(name: str) -> Path:
-    candidates = [BASE / name, BASE / "shap_outputs" / name]
+    candidates = [
+        BASE / name,
+        BASE / "shap_outputs" / name,
+    ]
     for path in candidates:
         if path.exists():
             return path
@@ -63,6 +65,20 @@ def load_model(name: str):
     return joblib.load(find_file(name))
 
 
+def safe_load_csv(name: str) -> pd.DataFrame:
+    try:
+        return load_csv(name)
+    except Exception:
+        return pd.DataFrame()
+
+
+def safe_load_json(name: str) -> dict:
+    try:
+        return load_json(name)
+    except Exception:
+        return {}
+
+
 def fmt_metric(x) -> str:
     try:
         return f"{float(x):.3f}"
@@ -71,7 +87,8 @@ def fmt_metric(x) -> str:
 
 
 def display_value(label: str) -> str:
-    return "Unknown / missing" if str(label) == "nan" else str(label)
+    label = str(label)
+    return "Unknown / missing" if label == "nan" else label
 
 
 def get_options(df1: pd.DataFrame, df2: pd.DataFrame, col: str, fallback: list[str]) -> list[str]:
@@ -127,26 +144,31 @@ def build_manual_input(prefix: str, gender_opts, site_opts, diet_opts, meds_opts
             key=f"{prefix}_joint_pain",
         )
 
-    return pd.DataFrame([{
-        "age_years": to_float(age_txt, 35.0),
-        "gender_clean": gender,
-        "site_clean": site,
-        "diet_preop_clean": diet,
-        "meds_preop_clean": meds,
-        "pre_mio_mm": to_float(pre_mio_txt, 30.0),
-        "pre_mahan_dir_present": float(pre_mahan_txt),
-        "pre_joint_noise_present": float(joint_noise_txt),
-        "pre_muscle_pain_present": float(muscle_pain_txt),
-        "pre_joint_pain_present": float(joint_pain_txt),
-    }])
+    return pd.DataFrame(
+        [
+            {
+                "age_years": to_float(age_txt, 35.0),
+                "gender_clean": gender,
+                "site_clean": site,
+                "diet_preop_clean": diet,
+                "meds_preop_clean": meds,
+                "pre_mio_mm": to_float(pre_mio_txt, 30.0),
+                "pre_mahan_dir_present": float(pre_mahan_txt),
+                "pre_joint_noise_present": float(joint_noise_txt),
+                "pre_muscle_pain_present": float(muscle_pain_txt),
+                "pre_joint_pain_present": float(joint_pain_txt),
+            }
+        ]
+    )
 
 
 def load_uploaded_patient(uploaded_file) -> pd.DataFrame:
     df = pd.read_csv(uploaded_file)
-    missing = [c for c in NUMERIC_FEATURES + CATEGORICAL_FEATURES if c not in df.columns]
+    required = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+    missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError("Uploaded CSV is missing required columns: " + ", ".join(missing))
-    return df[NUMERIC_FEATURES + CATEGORICAL_FEATURES].copy()
+    return df[required].copy()
 
 
 def get_transformed_feature_map(fitted_pipe):
@@ -159,15 +181,21 @@ def get_transformed_feature_map(fitted_pipe):
 
 def collapse_shap_by_base_feature(shap_row, transformed_feature_names):
     feature_contrib = {}
+
     for name, value in zip(transformed_feature_names, shap_row):
+        arr = np.asarray(value)
+        scalar = float(arr.reshape(-1)[0]) if arr.ndim > 0 else float(arr)
+
         matched = False
         for base in CATEGORICAL_FEATURES:
             if name.startswith(base + "_"):
-                feature_contrib[base] = feature_contrib.get(base, 0.0) + float(value)
+                feature_contrib[base] = feature_contrib.get(base, 0.0) + scalar
                 matched = True
                 break
+
         if not matched:
-            feature_contrib[name] = feature_contrib.get(name, 0.0) + float(value)
+            feature_contrib[name] = feature_contrib.get(name, 0.0) + scalar
+
     return feature_contrib
 
 
@@ -179,17 +207,44 @@ def explain_single_prediction(fitted_pipe, row: pd.DataFrame):
     transformed_names = get_transformed_feature_map(fitted_pipe)
 
     import shap
+
     explainer = shap.TreeExplainer(model)
     shap_values = explainer.shap_values(transformed)
 
     if isinstance(shap_values, list):
-        shap_row = np.array(shap_values[1])[0]
+        shap_arr = np.asarray(shap_values[1])
     else:
-        shap_row = np.array(shap_values)[0]
+        shap_arr = np.asarray(shap_values)
 
+        if shap_arr.ndim == 3 and shap_arr.shape[0] == transformed.shape[0]:
+            if shap_arr.shape[2] > 1:
+                shap_arr = shap_arr[:, :, 1]
+            else:
+                shap_arr = shap_arr[:, :, 0]
+        elif shap_arr.ndim == 3 and shap_arr.shape[1] == transformed.shape[0]:
+            if shap_arr.shape[0] > 1:
+                shap_arr = shap_arr[1]
+            else:
+                shap_arr = shap_arr[0]
+        elif shap_arr.ndim == 2:
+            pass
+        elif shap_arr.ndim == 1:
+            shap_arr = shap_arr.reshape(1, -1)
+        else:
+            raise ValueError(f"Unexpected SHAP output shape: {shap_arr.shape}")
+
+    shap_row = np.ravel(shap_arr[0])
     collapsed = collapse_shap_by_base_feature(shap_row, transformed_names)
+
     local_df = pd.DataFrame(
-        [{"feature": k, "shap_value": v, "feature_pretty": PRETTY_NAME_MAP.get(k, k)} for k, v in collapsed.items()]
+        [
+            {
+                "feature": k,
+                "shap_value": float(v),
+                "feature_pretty": PRETTY_NAME_MAP.get(k, k),
+            }
+            for k, v in collapsed.items()
+        ]
     ).sort_values("shap_value", key=lambda s: s.abs(), ascending=False)
 
     return local_df
@@ -203,18 +258,14 @@ def plain_language_explanation(local_df: pd.DataFrame, positive_label: str) -> s
     parts = []
     if positive:
         parts.append(
-            "The prediction was pushed more toward **{}** mainly by: {}.".format(
-                positive_label, ", ".join(positive)
-            )
+            f"The prediction was pushed more toward **{positive_label}** mainly by: {', '.join(positive)}."
         )
     if negative:
         parts.append(
-            "The prediction was pushed away from **{}** mainly by: {}.".format(
-                positive_label, ", ".join(negative)
-            )
+            f"The prediction was pushed away from **{positive_label}** mainly by: {', '.join(negative)}."
         )
     if not parts:
-        parts.append("No strong feature contributions were found for this case.")
+        parts.append("No strong feature contributions were identified for this case.")
 
     parts.append(
         "This explanation reflects how the saved model used the entered baseline clinical features for this individual case."
@@ -226,59 +277,103 @@ def render_local_shap(local_df: pd.DataFrame, title: str):
     st.subheader(title)
     plot_df = local_df.head(10).copy()
     st.bar_chart(plot_df.set_index("feature_pretty")["shap_value"])
-    st.dataframe(
-        plot_df[["feature_pretty", "shap_value"]],
-        use_container_width=True,
-        hide_index=True
-    )
+    st.dataframe(plot_df[["feature_pretty", "shap_value"]], width="stretch", hide_index=True)
+
+
+def render_global_shap(study: str, title: str):
+    st.subheader(title)
+
+    try:
+        png_path = find_file(f"{study}_global_shap_bar.png")
+        st.image(str(png_path), width="stretch")
+    except Exception:
+        st.info("Global SHAP image not found.")
+
+    df = safe_load_csv(f"{study}_global_importance.csv")
+    if not df.empty:
+        keep_cols = [c for c in ["feature_pretty", "mean_abs_shap"] if c in df.columns]
+        st.dataframe(df[keep_cols] if keep_cols else df, width="stretch", hide_index=True)
+    else:
+        st.info("Global SHAP table not found.")
 
 
 st.set_page_config(page_title="TMJ AI Studio", page_icon="🦷", layout="wide")
 
-study1_df = load_csv("study1_mio_model_dataset.csv")
-study2_df = load_csv("study2_stage_model_dataset.csv")
-summary = load_json("model_summary.json")
+summary = safe_load_json("model_summary.json")
+study1_df = safe_load_csv("study1_mio_model_dataset.csv")
+study2_df = safe_load_csv("study2_stage_model_dataset.csv")
 
 model1 = load_model("model_study1_mio_improvement.joblib")
 model2 = load_model("model_study2_advanced_stage.joblib")
 
 gender_options = get_options(study1_df, study2_df, "gender_clean", ["F", "M"])
 site_options = get_options(study1_df, study2_df, "site_clean", ["LT", "RT", "BL", "nan"])
-diet_options = get_options(study1_df, study2_df, "diet_preop_clean", ["regular", "soft", "regular_comp", "rc", "unknown", "nan"])
+diet_options = get_options(
+    study1_df,
+    study2_df,
+    "diet_preop_clean",
+    ["regular", "soft", "regular_comp", "rc", "unknown", "nan"],
+)
 meds_options = get_options(study1_df, study2_df, "meds_preop_clean", ["yes", "no", "nan"])
 
 st.title("TMJ AI Studio")
-st.caption("Upload a patient CSV or enter one patient manually, then get prediction and SHAP-based explanation.")
+st.caption(
+    "Research prototype for decision support. Not a substitute for clinical judgment."
+)
 
 with st.sidebar:
     st.header("Model snapshot")
-    st.write("**Study 1**")
-    st.write(f"AUC: {fmt_metric(summary.get('study1', {}).get('roc_auc'))}")
-    st.write(f"Accuracy: {fmt_metric(summary.get('study1', {}).get('accuracy'))}")
-    st.write("**Study 2**")
-    st.write(f"AUC: {fmt_metric(summary.get('study2', {}).get('roc_auc'))}")
-    st.write(f"Accuracy: {fmt_metric(summary.get('study2', {}).get('accuracy'))}")
 
-tabs = st.tabs(["Study 1", "Study 2", "CSV template help"])
+    s1 = summary.get("study1", {})
+    s2 = summary.get("study2", {})
+
+    st.write("**Functional Improvement Forecast**")
+    st.write(f"AUC: {fmt_metric(s1.get('roc_auc'))}")
+    st.write(f"Accuracy: {fmt_metric(s1.get('accuracy'))}")
+    st.write(f"F1: {fmt_metric(s1.get('f1'))}")
+
+    st.write("**Severity Insight**")
+    st.write(f"AUC: {fmt_metric(s2.get('roc_auc'))}")
+    st.write(f"Accuracy: {fmt_metric(s2.get('accuracy'))}")
+    st.write(f"F1: {fmt_metric(s2.get('f1'))}")
+
+tabs = st.tabs(
+    [
+        "Functional Improvement Forecast",
+        "Severity Insight",
+        "Explainability",
+        "CSV Template Help",
+    ]
+)
 
 with tabs[0]:
-    st.subheader("Study 1: Predict meaningful postoperative MIO improvement")
-    mode1 = st.selectbox("Input method", ["Manual entry", "Upload patient CSV"], key="study1_mode")
+    st.subheader("Functional Improvement Forecast")
+    st.write("Estimate likelihood of clinically meaningful postoperative MIO improvement.")
+
+    mode1 = st.selectbox(
+        "Input method",
+        ["Manual entry", "Upload patient CSV"],
+        key="study1_mode",
+    )
 
     row1 = None
     if mode1 == "Manual entry":
         row1 = build_manual_input("s1", gender_options, site_options, diet_options, meds_options)
     else:
-        uploaded1 = st.file_uploader("Upload patient CSV for Study 1", type=["csv"], key="u1")
+        uploaded1 = st.file_uploader(
+            "Upload patient CSV for Functional Improvement Forecast",
+            type=["csv"],
+            key="u1",
+        )
         if uploaded1 is not None:
             try:
                 row1 = load_uploaded_patient(uploaded1)
                 st.success("CSV loaded successfully.")
-                st.dataframe(row1, use_container_width=True)
+                st.dataframe(row1, width="stretch")
             except Exception as e:
                 st.error(str(e))
 
-    if row1 is not None and st.button("Run Study 1 prediction", use_container_width=True):
+    if row1 is not None and st.button("Run Functional Improvement Forecast", width="stretch"):
         probs = model1.predict_proba(row1)[:, 1]
         preds = (probs >= 0.5).astype(int)
 
@@ -287,7 +382,7 @@ with tabs[0]:
         results["predicted_class"] = ["Responder" if p == 1 else "Non-responder" for p in preds]
 
         st.subheader("Prediction results")
-        st.dataframe(results, use_container_width=True)
+        st.dataframe(results, width="stretch")
 
         local_df1 = explain_single_prediction(model1, row1.iloc[[0]])
 
@@ -296,28 +391,38 @@ with tabs[0]:
         st.write(
             plain_language_explanation(
                 local_df1,
-                positive_label="meaningful MIO improvement"
+                positive_label="clinically meaningful postoperative MIO improvement",
             )
         )
 
 with tabs[1]:
-    st.subheader("Study 2: Predict advanced Wilkes stage")
-    mode2 = st.selectbox("Input method", ["Manual entry", "Upload patient CSV"], key="study2_mode")
+    st.subheader("Severity Insight")
+    st.write("Estimate likelihood of advanced-stage TMJ disease severity.")
+
+    mode2 = st.selectbox(
+        "Input method",
+        ["Manual entry", "Upload patient CSV"],
+        key="study2_mode",
+    )
 
     row2 = None
     if mode2 == "Manual entry":
         row2 = build_manual_input("s2", gender_options, site_options, diet_options, meds_options)
     else:
-        uploaded2 = st.file_uploader("Upload patient CSV for Study 2", type=["csv"], key="u2")
+        uploaded2 = st.file_uploader(
+            "Upload patient CSV for Severity Insight",
+            type=["csv"],
+            key="u2",
+        )
         if uploaded2 is not None:
             try:
                 row2 = load_uploaded_patient(uploaded2)
                 st.success("CSV loaded successfully.")
-                st.dataframe(row2, use_container_width=True)
+                st.dataframe(row2, width="stretch")
             except Exception as e:
                 st.error(str(e))
 
-    if row2 is not None and st.button("Run Study 2 prediction", use_container_width=True):
+    if row2 is not None and st.button("Run Severity Insight", width="stretch"):
         probs = model2.predict_proba(row2)[:, 1]
         preds = (probs >= 0.5).astype(int)
 
@@ -326,7 +431,7 @@ with tabs[1]:
         results["predicted_class"] = ["Advanced stage" if p == 1 else "Lower stage" for p in preds]
 
         st.subheader("Prediction results")
-        st.dataframe(results, use_container_width=True)
+        st.dataframe(results, width="stretch")
 
         local_df2 = explain_single_prediction(model2, row2.iloc[[0]])
 
@@ -335,31 +440,44 @@ with tabs[1]:
         st.write(
             plain_language_explanation(
                 local_df2,
-                positive_label="advanced stage disease"
+                positive_label="advanced-stage disease",
             )
         )
 
 with tabs[2]:
+    st.subheader("Global Explainability")
+    c1, c2 = st.columns(2)
+
+    with c1:
+        render_global_shap("study1", "Functional Improvement Forecast — Global SHAP")
+    with c2:
+        render_global_shap("study2", "Severity Insight — Global SHAP")
+
+with tabs[3]:
     st.subheader("Required CSV columns")
-    template = pd.DataFrame([{
-        "age_years": 35,
-        "gender_clean": "F",
-        "site_clean": "RT",
-        "diet_preop_clean": "soft",
-        "meds_preop_clean": "yes",
-        "pre_mio_mm": 28,
-        "pre_mahan_dir_present": 1,
-        "pre_joint_noise_present": 1,
-        "pre_muscle_pain_present": 1,
-        "pre_joint_pain_present": 1,
-    }])
+    template = pd.DataFrame(
+        [
+            {
+                "age_years": 35,
+                "gender_clean": "F",
+                "site_clean": "RT",
+                "diet_preop_clean": "soft",
+                "meds_preop_clean": "yes",
+                "pre_mio_mm": 28,
+                "pre_mahan_dir_present": 1,
+                "pre_joint_noise_present": 1,
+                "pre_muscle_pain_present": 1,
+                "pre_joint_pain_present": 1,
+            }
+        ]
+    )
 
     st.write("Your uploaded CSV must include these columns exactly:")
-    st.dataframe(template, use_container_width=True)
+    st.dataframe(template, width="stretch")
 
     st.download_button(
         "Download CSV template",
         data=template.to_csv(index=False).encode("utf-8"),
         file_name="tmj_patient_template.csv",
-        mime="text/csv"
+        mime="text/csv",
     )
