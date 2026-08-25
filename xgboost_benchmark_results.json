@@ -1,0 +1,81 @@
+{
+  "methodology": {
+    "classification_outer_validation": "StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=42), grouped by patient_id",
+    "xgboost_tuning": "Nested 3-fold StratifiedGroupKFold within each outer training fold; five prespecified XGBoost parameter sets selected by inner AUC",
+    "auc_difference_uncertainty": "Paired patient-cluster bootstrap, 3000 resamples",
+    "regression_validation": "GroupKFold(n_splits=3), grouped by patient_id; nested GroupKFold tuning for XGBoost",
+    "decision_threshold": 0.5
+  },
+  "functional_response": {
+    "random_forest": {
+      "roc_auc": 0.8686647173,
+      "accuracy": 0.7811158798,
+      "precision": 0.65,
+      "recall": 0.8024691358,
+      "specificity": 0.7697368421,
+      "f1": 0.7182320442,
+      "brier": 0.1461737057
+    },
+    "nested_xgboost": {
+      "roc_auc": 0.8750812216,
+      "accuracy": 0.8090128755,
+      "precision": 0.6891191710,
+      "recall": 0.8209876543,
+      "specificity": 0.8026315789,
+      "f1": 0.7492957746,
+      "brier": 0.1408113582
+    },
+    "paired_auc_difference_xgb_minus_rf": {
+      "observed_difference": 0.0064165042,
+      "bootstrap_mean_difference": 0.0063669331,
+      "ci_95": [-0.0076750640, 0.0196630045],
+      "bootstrap_probability_xgb_auc_gt_rf": 0.817,
+      "n_bootstrap": 3000
+    }
+  },
+  "severity_stratification": {
+    "random_forest": {
+      "roc_auc": 0.7097422882,
+      "accuracy": 0.6717724289,
+      "precision": 0.7165354331,
+      "recall": 0.7,
+      "specificity": 0.6345177665,
+      "f1": 0.7081712062,
+      "brier": 0.2173757332
+    },
+    "nested_xgboost": {
+      "roc_auc": 0.6925517376,
+      "accuracy": 0.6520787746,
+      "precision": 0.7044534413,
+      "recall": 0.6692307692,
+      "specificity": 0.6294416244,
+      "f1": 0.6863905325,
+      "brier": 0.2229980064
+    },
+    "paired_auc_difference_xgb_minus_rf": {
+      "observed_difference": -0.0171905506,
+      "bootstrap_mean_difference": -0.0173073549,
+      "ci_95": [-0.0412135887, 0.0051456968],
+      "bootstrap_probability_xgb_auc_gt_rf": 0.0716666667,
+      "n_bootstrap": 3000
+    }
+  },
+  "postoperative_mio_regression": {
+    "n_encounters": 466,
+    "n_unique_patients": 451,
+    "random_forest": {
+      "mae_mm": 4.7745055175,
+      "rmse_mm": 6.6016682751,
+      "r2": 0.0242177446
+    },
+    "nested_xgboost": {
+      "mae_mm": 4.7683271686,
+      "rmse_mm": 6.6053522828,
+      "r2": 0.0231283859
+    }
+  },
+  "decision": {
+    "production_models_changed": false,
+    "reason": "XGBoost produced only a small and statistically uncertain AUC increase for functional response, lower AUC for severity stratification, and no meaningful improvement in exact-MIO regression. Random Forest remains the production model."
+  }
+}
