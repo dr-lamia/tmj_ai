@@ -1,0 +1,13 @@
+{
+  "status": "exploratory",
+  "target": "last-visit postoperative MIO (mm)",
+  "validation_scheme": "patient-grouped 3-fold GroupKFold",
+  "n_encounters": 466,
+  "n_unique_patients": 451,
+  "mae_mm": 4.774506,
+  "rmse_mm": 6.601668,
+  "r2": 0.024218,
+  "mean_observed_postop_mio_mm": 38.490880,
+  "sd_observed_postop_mio_mm": 6.690271,
+  "interpretation": "Continuous postoperative MIO prediction showed limited explanatory performance and should be treated as exploratory rather than a primary clinical prediction output."
+}
