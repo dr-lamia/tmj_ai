@@ -86,6 +86,16 @@ Because the R² was very low, the exact-MIO estimate is intentionally labelled *
 
 A direct change-score regression was explored during development, but its apparent performance depended strongly on preoperative MIO because the change score itself contains the baseline value. It is therefore not presented as an independently validated continuous prognostic model.
 
+## XGBoost benchmark
+
+XGBoost was tested before replacing the Random Forest models using nested patient-grouped validation.
+
+- Functional-response AUC: Random Forest **0.8687** vs XGBoost **0.8751**. The AUC increase was only 0.0064, with a paired patient-cluster bootstrap 95% CI of **-0.0077 to 0.0197**.
+- Severity-stratification AUC: Random Forest **0.7097** vs XGBoost **0.6926**.
+- Exact postoperative-MIO regression: Random Forest MAE **4.7745 mm**, R² **0.0242** vs XGBoost MAE **4.7683 mm**, R² **0.0231**.
+
+The deployed models were therefore **not replaced**. XGBoost showed only a small, statistically uncertain numerical gain for the primary classifier, performed worse for severity stratification, and did not meaningfully improve exact-MIO regression. Full details are in `xgboost_benchmark.md` and `xgboost_benchmark_results.json`.
+
 ## Main files
 
 - `tmj_clean_master_deidentified.csv`
@@ -97,6 +107,8 @@ A direct change-score regression was explored during development, but its appare
 - `grouped_validation_metrics.json`
 - `regression_utils.py`
 - `regression_summary.json`
+- `xgboost_benchmark.md`
+- `xgboost_benchmark_results.json`
 - `app.py`
 - `model_summary.json`
 - `data_cleaning_report.md`
