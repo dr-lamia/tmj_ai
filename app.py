@@ -7,7 +7,6 @@ import pandas as pd
 import streamlit as st
 
 from regression_utils import (
-    grouped_cross_validation,
     load_or_fit_regression_model,
     predict_postop_mio,
 )
@@ -71,13 +70,6 @@ def load_model(name: str):
 @st.cache_resource
 def load_regression_model():
     return load_or_fit_regression_model(find_file("tmj_clean_master_deidentified.csv"))
-
-
-@st.cache_data
-def regression_metrics() -> dict:
-    master = load_csv("tmj_clean_master_deidentified.csv")
-    metrics, _ = grouped_cross_validation(master, n_splits=3)
-    return metrics
 
 
 def safe_load_csv(name: str) -> pd.DataFrame:
@@ -306,6 +298,7 @@ def render_global_shap(study: str, title: str):
 st.set_page_config(page_title="TMJ AI Studio", page_icon="🦷", layout="wide")
 
 summary = safe_load_json("model_summary.json")
+reg_summary = safe_load_json("regression_summary.json")
 study1_df = safe_load_csv("study1_mio_model_dataset.csv")
 study2_df = safe_load_csv("study2_stage_model_dataset.csv")
 
@@ -336,18 +329,18 @@ with st.sidebar:
     st.write(f"Accuracy: {fmt_metric(s2.get('accuracy'))}")
     st.write(f"F1: {fmt_metric(s2.get('f1'))}")
 
-    with st.expander("Postoperative MIO regression validation"):
-        try:
-            reg_metrics = regression_metrics()
-            st.write(f"MAE: {fmt_metric(reg_metrics.get('mae_mm'))} mm")
-            st.write(f"RMSE: {fmt_metric(reg_metrics.get('rmse_mm'))} mm")
-            st.write(f"R²: {fmt_metric(reg_metrics.get('r2'))}")
-            st.caption(
-                f"Patient-grouped 3-fold CV; n={reg_metrics.get('n_encounters', '—')} encounters / "
-                f"{reg_metrics.get('n_unique_patients', '—')} patients."
-            )
-        except Exception as e:
-            st.info(f"Regression validation metrics unavailable: {e}")
+    with st.expander("Exploratory postoperative MIO regression"):
+        st.write(f"MAE: {fmt_metric(reg_summary.get('mae_mm'))} mm")
+        st.write(f"RMSE: {fmt_metric(reg_summary.get('rmse_mm'))} mm")
+        st.write(f"R²: {fmt_metric(reg_summary.get('r2'))}")
+        st.caption(
+            f"Patient-grouped 3-fold CV; n={reg_summary.get('n_encounters', '—')} encounters / "
+            f"{reg_summary.get('n_unique_patients', '—')} patients."
+        )
+        st.warning(
+            "This continuous estimate has limited internal predictive performance and is exploratory. "
+            "It should not be used as a stand-alone clinical prediction."
+        )
 
 
 tabs = st.tabs([
@@ -360,8 +353,8 @@ tabs = st.tabs([
 with tabs[0]:
     st.subheader("Functional Prognosis")
     st.write(
-        "Estimate both the probability of a clinically meaningful MIO improvement (≥10 mm) "
-        "and the expected postoperative MIO in millimetres."
+        "Primary output: probability of clinically meaningful MIO improvement (≥10 mm). "
+        "An exploratory continuous model also estimates postoperative MIO in millimetres."
     )
 
     mode1 = st.selectbox("Input method", ["Manual entry", "Upload patient CSV"], key="study1_mode")
@@ -392,8 +385,8 @@ with tabs[0]:
         first = results.iloc[0]
         c1, c2, c3 = st.columns(3)
         c1.metric("Probability of ≥10 mm improvement", f"{first['probability_mio_improvement_ge_10mm'] * 100:.1f}%")
-        c2.metric("Predicted postoperative MIO", f"{first['predicted_postop_mio_mm']:.1f} mm")
-        c3.metric("Expected MIO change", f"{first['predicted_mio_change_mm']:+.1f} mm")
+        c2.metric("Exploratory postop MIO estimate", f"{first['predicted_postop_mio_mm']:.1f} mm")
+        c3.metric("Exploratory expected change", f"{first['predicted_mio_change_mm']:+.1f} mm")
         st.caption(f"Classifier result for first patient: **{first['predicted_class']}**")
 
         st.subheader("Prediction results")
@@ -409,9 +402,13 @@ with tabs[0]:
             render_local_shap(local_reg, "Why the regression model estimated this postoperative MIO")
             st.write(plain_language_regression_explanation(local_reg))
 
+        st.warning(
+            "The continuous postoperative-MIO estimate is exploratory (patient-grouped validation: "
+            f"MAE {fmt_metric(reg_summary.get('mae_mm'))} mm; R² {fmt_metric(reg_summary.get('r2'))}). "
+            "The ≥10 mm responder probability remains the primary prognostic output."
+        )
         st.info(
-            "The predicted postoperative MIO is an estimated continuous outcome. The expected change is calculated as "
-            "predicted postoperative MIO minus the entered preoperative MIO."
+            "Expected change is calculated as estimated postoperative MIO minus the entered preoperative MIO."
         )
 
 with tabs[1]:
