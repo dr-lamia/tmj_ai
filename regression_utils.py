@@ -1,11 +1,12 @@
-"""Utilities for postoperative MIO regression in the TMJ AI project.
+"""Utilities for an exploratory postoperative MIO regression module.
 
 The regression target is the observed last-visit maximal interincisal opening
 (lv_mio_mm), not the change score. Expected improvement is calculated only
 at inference time as predicted postoperative MIO minus preoperative MIO.
 
 This avoids defining the regression target directly from preoperative MIO
-while also using preoperative MIO as a predictor.
+while also using preoperative MIO as a predictor. The module is exploratory
+because its patient-grouped internal-validation performance is limited.
 """
 
 from __future__ import annotations
@@ -47,11 +48,8 @@ GROUP = "patient_id"
 
 
 def build_regression_pipeline() -> Pipeline:
-    """Build the preprocessing + Random Forest regression pipeline."""
     numeric_pipe = Pipeline(
-        steps=[
-            ("imputer", SimpleImputer(strategy="median")),
-        ]
+        steps=[("imputer", SimpleImputer(strategy="median"))]
     )
 
     categorical_pipe = Pipeline(
@@ -84,13 +82,17 @@ def build_regression_pipeline() -> Pipeline:
 
 
 def prepare_regression_data(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, pd.Series, pd.DataFrame]:
-    """Return X, y, patient groups, and the filtered analysis dataframe."""
     required = FEATURES + [TARGET, GROUP]
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError("Missing required columns: " + ", ".join(missing))
 
-    analysis_df = df.loc[df[TARGET].notna() & df[GROUP].notna()].copy()
+    analysis_df = df.loc[
+        df[TARGET].notna()
+        & df[GROUP].notna()
+        & df["pre_mio_mm"].notna()
+    ].copy()
+
     X = analysis_df[FEATURES].copy()
     y = pd.to_numeric(analysis_df[TARGET], errors="coerce")
     groups = analysis_df[GROUP].astype(str)
@@ -108,7 +110,6 @@ def grouped_cross_validation(
     df: pd.DataFrame,
     n_splits: int = 3,
 ) -> Tuple[Dict[str, float], pd.DataFrame]:
-    """Evaluate postoperative MIO prediction with patient-grouped CV."""
     X, y, groups, analysis_df = prepare_regression_data(df)
 
     cv = GroupKFold(n_splits=n_splits)
@@ -141,22 +142,32 @@ def grouped_cross_validation(
 
     oof = pd.DataFrame(
         {
-            "encounter_id": analysis_df.get("encounter_id", pd.Series(analysis_df.index, index=analysis_df.index)).astype(str).values,
+            "encounter_id": analysis_df.get(
+                "encounter_id",
+                pd.Series(analysis_df.index, index=analysis_df.index),
+            ).astype(str).values,
             "patient_id": groups.values,
-            "pre_mio_mm": pd.to_numeric(analysis_df["pre_mio_mm"], errors="coerce").values,
+            "pre_mio_mm": pd.to_numeric(
+                analysis_df["pre_mio_mm"], errors="coerce"
+            ).values,
             "observed_postop_mio_mm": y.values,
             "predicted_postop_mio_mm": oof_pred,
         }
     )
-    oof["observed_mio_change_mm"] = oof["observed_postop_mio_mm"] - oof["pre_mio_mm"]
-    oof["predicted_mio_change_mm"] = oof["predicted_postop_mio_mm"] - oof["pre_mio_mm"]
-    oof["absolute_error_mm"] = np.abs(oof["observed_postop_mio_mm"] - oof["predicted_postop_mio_mm"])
+    oof["observed_mio_change_mm"] = (
+        oof["observed_postop_mio_mm"] - oof["pre_mio_mm"]
+    )
+    oof["predicted_mio_change_mm"] = (
+        oof["predicted_postop_mio_mm"] - oof["pre_mio_mm"]
+    )
+    oof["absolute_error_mm"] = np.abs(
+        oof["observed_postop_mio_mm"] - oof["predicted_postop_mio_mm"]
+    )
 
     return metrics, oof
 
 
 def fit_final_regression_model(df: pd.DataFrame) -> Pipeline:
-    """Fit the final regression model on all eligible encounters."""
     X, y, _groups, _analysis_df = prepare_regression_data(df)
     pipeline = build_regression_pipeline()
     pipeline.fit(X, y)
@@ -164,10 +175,11 @@ def fit_final_regression_model(df: pd.DataFrame) -> Pipeline:
 
 
 def predict_postop_mio(model: Pipeline, patient_rows: pd.DataFrame) -> pd.DataFrame:
-    """Predict postoperative MIO and derive expected change in millimetres."""
     X = patient_rows[FEATURES].copy()
     predicted_postop = model.predict(X)
-    pre_mio = pd.to_numeric(patient_rows["pre_mio_mm"], errors="coerce").to_numpy(dtype=float)
+    pre_mio = pd.to_numeric(
+        patient_rows["pre_mio_mm"], errors="coerce"
+    ).to_numpy(dtype=float)
 
     result = patient_rows.copy()
     result["predicted_postop_mio_mm"] = predicted_postop
@@ -176,7 +188,6 @@ def predict_postop_mio(model: Pipeline, patient_rows: pd.DataFrame) -> pd.DataFr
 
 
 def load_or_fit_regression_model(data_path: str | Path) -> Pipeline:
-    """Convenience function for Streamlit: fit from the de-identified master data."""
     df = pd.read_csv(data_path)
     return fit_final_regression_model(df)
 
