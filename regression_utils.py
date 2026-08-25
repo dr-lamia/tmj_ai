@@ -183,6 +183,3 @@ def load_or_fit_regression_model(data_path: str | Path) -> Pipeline:
 
 def save_regression_model(model: Pipeline, output_path: str | Path) -> None:
     joblib.dump(model, output_path)
-
-
-# The grouped validation workflow runs automatically when this module changes.
