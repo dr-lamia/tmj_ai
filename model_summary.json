@@ -1,25 +1,49 @@
 {
-  "validation_scheme": "patient-grouped 3-fold cross-validation",
+  "validation_scheme": "StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=42)",
   "study1": {
     "name": "Functional response classifier",
-    "roc_auc": 0.864,
-    "accuracy": 0.796,
-    "f1": 0.734,
-    "precision": 0.672,
-    "recall": 0.809,
-    "specificity": 0.789
+    "roc_auc": 0.8686647173,
+    "accuracy": 0.7811158798,
+    "precision": 0.65,
+    "recall": 0.8024691358,
+    "specificity": 0.7697368421,
+    "f1": 0.7182320442,
+    "brier": 0.1461737057,
+    "calibration_intercept": -0.3993533529,
+    "calibration_slope": 1.4235548314,
+    "n": 466,
+    "unique_patients": 451,
+    "positives": 162,
+    "confusion_matrix": [[234, 70], [32, 130]],
+    "auc_95ci_patient_cluster_bootstrap": [0.8360811349, 0.8989233022]
   },
   "study2": {
     "name": "Severity stratification",
-    "roc_auc": 0.716,
-    "accuracy": 0.659,
-    "f1": 0.692,
-    "precision": 0.711,
-    "recall": 0.673,
-    "specificity": 0.640
+    "roc_auc": 0.7097422882,
+    "accuracy": 0.6717724289,
+    "precision": 0.7165354331,
+    "recall": 0.7,
+    "specificity": 0.6345177665,
+    "f1": 0.7081712062,
+    "brier": 0.2173757332,
+    "calibration_intercept": 0.1720140764,
+    "calibration_slope": 1.1231565413,
+    "n": 457,
+    "unique_patients": 443,
+    "positives": 260,
+    "confusion_matrix": [[125, 72], [78, 182]],
+    "auc_95ci_patient_cluster_bootstrap": [0.6604672494, 0.7563184303]
   },
-  "n1": 466,
-  "n2": 457,
-  "pos1": 162,
-  "pos2": 260
+  "study1_sensitivity_without_preop_mio": {
+    "roc_auc": 0.6336196394,
+    "accuracy": 0.6201716738,
+    "precision": 0.4571428571,
+    "recall": 0.4938271605,
+    "specificity": 0.6875,
+    "f1": 0.4747774481,
+    "brier": 0.2272655502,
+    "n": 466,
+    "unique_patients": 451,
+    "confusion_matrix": [[209, 95], [82, 80]]
+  }
 }
