@@ -1,0 +1,60 @@
+name: Validate postoperative MIO regression
+
+on:
+  push:
+    paths:
+      - "regression_utils.py"
+      - "tmj_clean_master_deidentified.csv"
+      - ".github/workflows/validate-regression.yml"
+  workflow_dispatch:
+
+jobs:
+  validate-regression:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scikit-learn==1.6.1 joblib
+
+      - name: Validate and fit regression model
+        run: |
+          python - <<'PY'
+          import json
+          import joblib
+          import pandas as pd
+
+          from regression_utils import grouped_cross_validation, fit_final_regression_model
+
+          df = pd.read_csv("tmj_clean_master_deidentified.csv")
+          metrics, oof = grouped_cross_validation(df, n_splits=3)
+          model = fit_final_regression_model(df)
+
+          with open("regression_validation_metrics.json", "w", encoding="utf-8") as f:
+              json.dump(metrics, f, indent=2)
+
+          oof.to_csv("regression_oof_predictions.csv", index=False)
+          joblib.dump(model, "model_postop_mio_regression.joblib")
+
+          print("REGRESSION_METRICS_START")
+          print(json.dumps(metrics, indent=2))
+          print("REGRESSION_METRICS_END")
+          PY
+
+      - name: Upload regression validation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: postop-mio-regression-validation
+          path: |
+            regression_validation_metrics.json
+            regression_oof_predictions.csv
+            model_postop_mio_regression.joblib
