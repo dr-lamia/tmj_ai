@@ -6,6 +6,12 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from regression_utils import (
+    grouped_cross_validation,
+    load_or_fit_regression_model,
+    predict_postop_mio,
+)
+
 
 BASE = Path(__file__).parent
 
@@ -40,10 +46,7 @@ PRETTY_NAME_MAP = {
 
 
 def find_file(name: str) -> Path:
-    candidates = [
-        BASE / name,
-        BASE / "shap_outputs" / name,
-    ]
+    candidates = [BASE / name, BASE / "shap_outputs" / name]
     for path in candidates:
         if path.exists():
             return path
@@ -63,6 +66,18 @@ def load_json(name: str) -> dict:
 @st.cache_resource
 def load_model(name: str):
     return joblib.load(find_file(name))
+
+
+@st.cache_resource
+def load_regression_model():
+    return load_or_fit_regression_model(find_file("tmj_clean_master_deidentified.csv"))
+
+
+@st.cache_data
+def regression_metrics() -> dict:
+    master = load_csv("tmj_clean_master_deidentified.csv")
+    metrics, _ = grouped_cross_validation(master, n_splits=3)
+    return metrics
 
 
 def safe_load_csv(name: str) -> pd.DataFrame:
@@ -181,7 +196,6 @@ def get_transformed_feature_map(fitted_pipe):
 
 def collapse_shap_by_base_feature(shap_row, transformed_feature_names):
     feature_contrib = {}
-
     for name, value in zip(transformed_feature_names, shap_row):
         arr = np.asarray(value)
         scalar = float(arr.reshape(-1)[0]) if arr.ndim > 0 else float(arr)
@@ -195,14 +209,12 @@ def collapse_shap_by_base_feature(shap_row, transformed_feature_names):
 
         if not matched:
             feature_contrib[name] = feature_contrib.get(name, 0.0) + scalar
-
     return feature_contrib
 
 
 def explain_single_prediction(fitted_pipe, row: pd.DataFrame):
     preprocessor = fitted_pipe.named_steps["preprocessor"]
     model = fitted_pipe.named_steps["model"]
-
     transformed = preprocessor.transform(row)
     transformed_names = get_transformed_feature_map(fitted_pipe)
 
@@ -212,31 +224,22 @@ def explain_single_prediction(fitted_pipe, row: pd.DataFrame):
     shap_values = explainer.shap_values(transformed)
 
     if isinstance(shap_values, list):
-        shap_arr = np.asarray(shap_values[1])
+        shap_arr = np.asarray(shap_values[1] if len(shap_values) > 1 else shap_values[0])
     else:
         shap_arr = np.asarray(shap_values)
-
         if shap_arr.ndim == 3 and shap_arr.shape[0] == transformed.shape[0]:
-            if shap_arr.shape[2] > 1:
-                shap_arr = shap_arr[:, :, 1]
-            else:
-                shap_arr = shap_arr[:, :, 0]
+            shap_arr = shap_arr[:, :, 1] if shap_arr.shape[2] > 1 else shap_arr[:, :, 0]
         elif shap_arr.ndim == 3 and shap_arr.shape[1] == transformed.shape[0]:
-            if shap_arr.shape[0] > 1:
-                shap_arr = shap_arr[1]
-            else:
-                shap_arr = shap_arr[0]
-        elif shap_arr.ndim == 2:
-            pass
+            shap_arr = shap_arr[1] if shap_arr.shape[0] > 1 else shap_arr[0]
         elif shap_arr.ndim == 1:
             shap_arr = shap_arr.reshape(1, -1)
-        else:
+        elif shap_arr.ndim != 2:
             raise ValueError(f"Unexpected SHAP output shape: {shap_arr.shape}")
 
     shap_row = np.ravel(shap_arr[0])
     collapsed = collapse_shap_by_base_feature(shap_row, transformed_names)
 
-    local_df = pd.DataFrame(
+    return pd.DataFrame(
         [
             {
                 "feature": k,
@@ -247,29 +250,34 @@ def explain_single_prediction(fitted_pipe, row: pd.DataFrame):
         ]
     ).sort_values("shap_value", key=lambda s: s.abs(), ascending=False)
 
-    return local_df
-
 
 def plain_language_explanation(local_df: pd.DataFrame, positive_label: str) -> str:
     top = local_df.head(5)
     positive = top[top["shap_value"] > 0]["feature_pretty"].tolist()
     negative = top[top["shap_value"] < 0]["feature_pretty"].tolist()
-
     parts = []
     if positive:
-        parts.append(
-            f"The prediction was pushed more toward **{positive_label}** mainly by: {', '.join(positive)}."
-        )
+        parts.append(f"The prediction was pushed more toward **{positive_label}** mainly by: {', '.join(positive)}.")
     if negative:
-        parts.append(
-            f"The prediction was pushed away from **{positive_label}** mainly by: {', '.join(negative)}."
-        )
+        parts.append(f"The prediction was pushed away from **{positive_label}** mainly by: {', '.join(negative)}.")
     if not parts:
         parts.append("No strong feature contributions were identified for this case.")
+    parts.append("SHAP describes the saved model's prediction; it does not establish causation.")
+    return " ".join(parts)
 
-    parts.append(
-        "This explanation reflects how the saved model used the entered baseline clinical features for this individual case."
-    )
+
+def plain_language_regression_explanation(local_df: pd.DataFrame) -> str:
+    top = local_df.head(5)
+    higher = top[top["shap_value"] > 0]["feature_pretty"].tolist()
+    lower = top[top["shap_value"] < 0]["feature_pretty"].tolist()
+    parts = []
+    if higher:
+        parts.append("Features pushing the estimated postoperative MIO **higher** included: " + ", ".join(higher) + ".")
+    if lower:
+        parts.append("Features pushing the estimated postoperative MIO **lower** included: " + ", ".join(lower) + ".")
+    if not parts:
+        parts.append("No strong feature contributions were identified for this case.")
+    parts.append("These are model contributions, not causal effects.")
     return " ".join(parts)
 
 
@@ -282,10 +290,8 @@ def render_local_shap(local_df: pd.DataFrame, title: str):
 
 def render_global_shap(study: str, title: str):
     st.subheader(title)
-
     try:
-        png_path = find_file(f"{study}_global_shap_bar.png")
-        st.image(str(png_path), width="stretch")
+        st.image(str(find_file(f"{study}_global_shap_bar.png")), width="stretch")
     except Exception:
         st.info("Global SHAP image not found.")
 
@@ -305,66 +311,65 @@ study2_df = safe_load_csv("study2_stage_model_dataset.csv")
 
 model1 = load_model("model_study1_mio_improvement.joblib")
 model2 = load_model("model_study2_advanced_stage.joblib")
+reg_model = load_regression_model()
 
 gender_options = get_options(study1_df, study2_df, "gender_clean", ["F", "M"])
 site_options = get_options(study1_df, study2_df, "site_clean", ["LT", "RT", "BL", "nan"])
-diet_options = get_options(
-    study1_df,
-    study2_df,
-    "diet_preop_clean",
-    ["regular", "soft", "regular_comp", "rc", "unknown", "nan"],
-)
+diet_options = get_options(study1_df, study2_df, "diet_preop_clean", ["regular", "soft", "regular_comp", "rc", "unknown", "nan"])
 meds_options = get_options(study1_df, study2_df, "meds_preop_clean", ["yes", "no", "nan"])
 
 st.title("TMJ AI Studio")
-st.caption(
-    "Research prototype for decision support. Not a substitute for clinical judgment."
-)
+st.caption("Research prototype for decision support. Not a substitute for clinical judgment.")
 
 with st.sidebar:
     st.header("Model snapshot")
-
     s1 = summary.get("study1", {})
     s2 = summary.get("study2", {})
 
-    st.write("**Functional Improvement Forecast**")
+    st.write("**Functional response classifier**")
     st.write(f"AUC: {fmt_metric(s1.get('roc_auc'))}")
     st.write(f"Accuracy: {fmt_metric(s1.get('accuracy'))}")
     st.write(f"F1: {fmt_metric(s1.get('f1'))}")
 
-    st.write("**Severity Insight**")
+    st.write("**Severity stratification**")
     st.write(f"AUC: {fmt_metric(s2.get('roc_auc'))}")
     st.write(f"Accuracy: {fmt_metric(s2.get('accuracy'))}")
     st.write(f"F1: {fmt_metric(s2.get('f1'))}")
 
-tabs = st.tabs(
-    [
-        "Functional Improvement Forecast",
-        "Severity Insight",
-        "Explainability",
-        "CSV Template Help",
-    ]
-)
+    with st.expander("Postoperative MIO regression validation"):
+        try:
+            reg_metrics = regression_metrics()
+            st.write(f"MAE: {fmt_metric(reg_metrics.get('mae_mm'))} mm")
+            st.write(f"RMSE: {fmt_metric(reg_metrics.get('rmse_mm'))} mm")
+            st.write(f"R²: {fmt_metric(reg_metrics.get('r2'))}")
+            st.caption(
+                f"Patient-grouped 3-fold CV; n={reg_metrics.get('n_encounters', '—')} encounters / "
+                f"{reg_metrics.get('n_unique_patients', '—')} patients."
+            )
+        except Exception as e:
+            st.info(f"Regression validation metrics unavailable: {e}")
+
+
+tabs = st.tabs([
+    "Functional Prognosis",
+    "Severity Insight",
+    "Explainability",
+    "CSV Template Help",
+])
 
 with tabs[0]:
-    st.subheader("Functional Improvement Forecast")
-    st.write("Estimate likelihood of clinically meaningful postoperative MIO improvement.")
-
-    mode1 = st.selectbox(
-        "Input method",
-        ["Manual entry", "Upload patient CSV"],
-        key="study1_mode",
+    st.subheader("Functional Prognosis")
+    st.write(
+        "Estimate both the probability of a clinically meaningful MIO improvement (≥10 mm) "
+        "and the expected postoperative MIO in millimetres."
     )
 
+    mode1 = st.selectbox("Input method", ["Manual entry", "Upload patient CSV"], key="study1_mode")
     row1 = None
     if mode1 == "Manual entry":
         row1 = build_manual_input("s1", gender_options, site_options, diet_options, meds_options)
     else:
-        uploaded1 = st.file_uploader(
-            "Upload patient CSV for Functional Improvement Forecast",
-            type=["csv"],
-            key="u1",
-        )
+        uploaded1 = st.file_uploader("Upload patient CSV for Functional Prognosis", type=["csv"], key="u1")
         if uploaded1 is not None:
             try:
                 row1 = load_uploaded_patient(uploaded1)
@@ -373,47 +378,52 @@ with tabs[0]:
             except Exception as e:
                 st.error(str(e))
 
-    if row1 is not None and st.button("Run Functional Improvement Forecast", width="stretch"):
+    if row1 is not None and st.button("Run Functional Prognosis", width="stretch"):
         probs = model1.predict_proba(row1)[:, 1]
         preds = (probs >= 0.5).astype(int)
+        reg_results = predict_postop_mio(reg_model, row1)
 
         results = row1.copy()
         results["probability_mio_improvement_ge_10mm"] = probs
         results["predicted_class"] = ["Responder" if p == 1 else "Non-responder" for p in preds]
+        results["predicted_postop_mio_mm"] = reg_results["predicted_postop_mio_mm"].values
+        results["predicted_mio_change_mm"] = reg_results["predicted_mio_change_mm"].values
+
+        first = results.iloc[0]
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Probability of ≥10 mm improvement", f"{first['probability_mio_improvement_ge_10mm'] * 100:.1f}%")
+        c2.metric("Predicted postoperative MIO", f"{first['predicted_postop_mio_mm']:.1f} mm")
+        c3.metric("Expected MIO change", f"{first['predicted_mio_change_mm']:+.1f} mm")
+        st.caption(f"Classifier result for first patient: **{first['predicted_class']}**")
 
         st.subheader("Prediction results")
         st.dataframe(results, width="stretch")
 
-        local_df1 = explain_single_prediction(model1, row1.iloc[[0]])
+        c1, c2 = st.columns(2)
+        with c1:
+            local_df1 = explain_single_prediction(model1, row1.iloc[[0]])
+            render_local_shap(local_df1, "Why the responder classifier predicted this")
+            st.write(plain_language_explanation(local_df1, "≥10 mm postoperative MIO improvement"))
+        with c2:
+            local_reg = explain_single_prediction(reg_model, row1.iloc[[0]])
+            render_local_shap(local_reg, "Why the regression model estimated this postoperative MIO")
+            st.write(plain_language_regression_explanation(local_reg))
 
-        st.subheader("Explanation")
-        render_local_shap(local_df1, "Local SHAP explanation for first patient")
-        st.write(
-            plain_language_explanation(
-                local_df1,
-                positive_label="clinically meaningful postoperative MIO improvement",
-            )
+        st.info(
+            "The predicted postoperative MIO is an estimated continuous outcome. The expected change is calculated as "
+            "predicted postoperative MIO minus the entered preoperative MIO."
         )
 
 with tabs[1]:
     st.subheader("Severity Insight")
-    st.write("Estimate likelihood of advanced-stage TMJ disease severity.")
+    st.write("Estimate likelihood of advanced-stage TMJ disease (Wilkes IV–V vs II–III).")
 
-    mode2 = st.selectbox(
-        "Input method",
-        ["Manual entry", "Upload patient CSV"],
-        key="study2_mode",
-    )
-
+    mode2 = st.selectbox("Input method", ["Manual entry", "Upload patient CSV"], key="study2_mode")
     row2 = None
     if mode2 == "Manual entry":
         row2 = build_manual_input("s2", gender_options, site_options, diet_options, meds_options)
     else:
-        uploaded2 = st.file_uploader(
-            "Upload patient CSV for Severity Insight",
-            type=["csv"],
-            key="u2",
-        )
+        uploaded2 = st.file_uploader("Upload patient CSV for Severity Insight", type=["csv"], key="u2")
         if uploaded2 is not None:
             try:
                 row2 = load_uploaded_patient(uploaded2)
@@ -425,7 +435,6 @@ with tabs[1]:
     if row2 is not None and st.button("Run Severity Insight", width="stretch"):
         probs = model2.predict_proba(row2)[:, 1]
         preds = (probs >= 0.5).astype(int)
-
         results = row2.copy()
         results["probability_advanced_stage_iv_v"] = probs
         results["predicted_class"] = ["Advanced stage" if p == 1 else "Lower stage" for p in preds]
@@ -434,47 +443,39 @@ with tabs[1]:
         st.dataframe(results, width="stretch")
 
         local_df2 = explain_single_prediction(model2, row2.iloc[[0]])
-
-        st.subheader("Explanation")
         render_local_shap(local_df2, "Local SHAP explanation for first patient")
-        st.write(
-            plain_language_explanation(
-                local_df2,
-                positive_label="advanced-stage disease",
-            )
-        )
+        st.write(plain_language_explanation(local_df2, "advanced-stage disease"))
+        st.warning("This module provides severity stratification support; it is not a definitive diagnostic test.")
 
 with tabs[2]:
     st.subheader("Global Explainability")
     c1, c2 = st.columns(2)
-
     with c1:
-        render_global_shap("study1", "Functional Improvement Forecast — Global SHAP")
+        render_global_shap("study1", "Functional response classifier — Global SHAP")
     with c2:
-        render_global_shap("study2", "Severity Insight — Global SHAP")
+        render_global_shap("study2", "Severity stratification — Global SHAP")
+    st.caption(
+        "The continuous postoperative-MIO regression module provides case-level SHAP explanations in the Functional Prognosis tab."
+    )
 
 with tabs[3]:
     st.subheader("Required CSV columns")
-    template = pd.DataFrame(
-        [
-            {
-                "age_years": 35,
-                "gender_clean": "F",
-                "site_clean": "RT",
-                "diet_preop_clean": "soft",
-                "meds_preop_clean": "yes",
-                "pre_mio_mm": 28,
-                "pre_mahan_dir_present": 1,
-                "pre_joint_noise_present": 1,
-                "pre_muscle_pain_present": 1,
-                "pre_joint_pain_present": 1,
-            }
-        ]
-    )
-
+    template = pd.DataFrame([
+        {
+            "age_years": 35,
+            "gender_clean": "F",
+            "site_clean": "RT",
+            "diet_preop_clean": "soft",
+            "meds_preop_clean": "yes",
+            "pre_mio_mm": 28,
+            "pre_mahan_dir_present": 1,
+            "pre_joint_noise_present": 1,
+            "pre_muscle_pain_present": 1,
+            "pre_joint_pain_present": 1,
+        }
+    ])
     st.write("Your uploaded CSV must include these columns exactly:")
     st.dataframe(template, width="stretch")
-
     st.download_button(
         "Download CSV template",
         data=template.to_csv(index=False).encode("utf-8"),
