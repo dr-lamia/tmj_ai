@@ -241,7 +241,7 @@ def personalized_counselling(first, row, vas_row, primary_model, vas_model):
     # VAS remains patient-important but statistically uncertain.
     if p_vas >= 0.60:
         strengths.append(
-            f"Pain-VAS improvement signal: {p_vas*100:.1f}%, but this model remains exploratory."
+            f"Pain-VAS improvement signal: {p_vas*100:.1f}%, but this secondary model remains exploratory."
         )
     elif p_vas < 0.50:
         cautions.append(
@@ -384,8 +384,8 @@ assessment, explain, evidence_tab, template_tab = st.tabs(
 
 with assessment:
     st.write(
-        "Main patient-centered outputs: probability of ≥10-mm MIO improvement and probability of postoperative "
-        "pain-VAS improvement. Secondary outputs describe joint pain, joint noise, medication requirement and diet."
+        "Primary output: probability of ≥10-mm MIO improvement. Secondary exploratory outcomes include "
+        "pain-VAS improvement, joint-pain status, joint-noise status, medication requirement and diet consistency."
     )
     mode = st.radio("Input method",["Manual entry","Upload CSV"],horizontal=True)
     row = None
@@ -420,7 +420,7 @@ with assessment:
         st.session_state["last_result"] = result
         first = result.iloc[0]
 
-        st.markdown("### Main patient-centered forecasts")
+        st.markdown("### Primary and key secondary patient-centered forecasts")
         c1,c2 = st.columns(2)
         c1.metric("Probability of ≥10-mm MIO improvement", f"{first['probability_mio_improvement_ge_10mm']*100:.1f}%")
         c1.caption("Primary functional-response model · AUC 0.869")
