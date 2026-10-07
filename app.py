@@ -345,7 +345,7 @@ def render_personalized_counselling(rec):
     st.caption(
         "SHAP factors explain this model's prediction; they are not causal risk factors and are not treatment targets."
     )
-    st.error(
+    st.warning(
         "Research counselling aid only — this section does not recommend performing, withholding, "
         "or changing arthroscopy. Treatment decisions require full clinical assessment and clinician judgment."
     )
