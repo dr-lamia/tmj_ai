@@ -18,10 +18,14 @@ NUMERIC_FEATURES = [
 ]
 CATEGORICAL_FEATURES = ["gender_clean", "site_clean", "diet_preop_clean", "meds_preop_clean"]
 FEATURES = NUMERIC_FEATURES + CATEGORICAL_FEATURES
+VAS_NUMERIC_FEATURES = NUMERIC_FEATURES + ["pre_vas"]
+VAS_FEATURES = VAS_NUMERIC_FEATURES + CATEGORICAL_FEATURES
+
 PRETTY = {
     "age_years": "Age", "pre_mio_mm": "Pre-op MIO",
     "pre_mahan_dir_present": "Directional limitation", "pre_joint_noise_present": "Joint noise",
     "pre_muscle_pain_present": "Muscle pain", "pre_joint_pain_present": "Joint pain",
+    "pre_vas": "Pre-op VAS",
     "gender_clean": "Sex", "site_clean": "Site", "diet_preop_clean": "Pre-op diet",
     "meds_preop_clean": "Pre-op medications",
 }
@@ -41,6 +45,24 @@ METRICS = {
     "Regular-consistency diet": {"n":469,"patients":454,"positive":291,"auc":0.5835553496,"ci":[0.5304355222,0.6377464531],"sensitivity":0.6838487973,"specificity":0.4719101124,"brier":0.2394816631},
 }
 
+VAS_IMPROVEMENT_METRICS = {
+    "definition": "postoperative VAS < preoperative VAS; 0=no pain, 100=worst pain; any reduction",
+    "n": 253,
+    "patients": 251,
+    "positive": 27,
+    "prevalence": 0.1067193676,
+    "auc": 0.6196329072,
+    "ci": [0.4901017830, 0.7381854018],
+    "average_precision": 0.2683876283,
+    "accuracy": 0.8814229249,
+    "sensitivity": 0.2222222222,
+    "specificity": 0.9601769912,
+    "precision": 0.4,
+    "f1": 0.2857142857,
+    "brier": 0.1243185659,
+    "threshold": 0.5,
+}
+
 GLOBAL_SHAP = {
     "Functional response": [["Pre-op MIO",0.2151101510],["Pre-op diet",0.0485786515],["Age",0.0402969397],["Pre-op medications",0.0331328642],["Joint noise",0.0319955025],["Site",0.0156473211]],
     "Joint pain absent": [["Pre-op diet",0.0458285961],["Age",0.0327031401],["Site",0.0304504593],["Sex",0.0304212957],["Joint pain",0.0263933936],["Muscle pain",0.0259282437]],
@@ -49,15 +71,32 @@ GLOBAL_SHAP = {
     "Regular-consistency diet": [["Pre-op diet",0.0638611695],["Pre-op medications",0.0560429233],["Age",0.0313225239],["Joint noise",0.0239312640],["Pre-op MIO",0.0199778838],["Site",0.0185844076]],
 }
 
-VAS = {"n":253,"patients":251,"pre_mean":46.9169960474,"post_mean":73.5375494071,"change_mean":26.6205533597,"mae":17.7421659789,"rmse":22.4552068097,"r2":-0.0413267457}
+VAS_GLOBAL_SHAP = [
+    ["Pre-op MIO",0.0885108822],["Age",0.0696150486],["Site",0.0427119473],
+    ["Pre-op VAS",0.0403634417],["Pre-op diet",0.0270019459],
+    ["Directional limitation",0.0213925738],["Joint noise",0.0207974636],
+    ["Sex",0.0195951127],["Joint pain",0.0188717869],["Muscle pain",0.0185219266],
+]
+
+VAS = {
+    "n":253,"patients":251,"pre_mean":46.9169960474,"post_mean":73.5375494071,
+    "change_mean":26.6205533597,"mae":17.7421659789,"rmse":22.4552068097,"r2":-0.0413267457
+}
+
+
+def _build_pipeline(numeric_features: list[str], n_estimators: int = 500) -> Pipeline:
+    num = Pipeline([("imputer", SimpleImputer(strategy="median"))])
+    cat = Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))])
+    pre = ColumnTransformer([("num", num, numeric_features), ("cat", cat, CATEGORICAL_FEATURES)])
+    model = RandomForestClassifier(
+        n_estimators=n_estimators, class_weight="balanced", min_samples_leaf=4,
+        random_state=42, n_jobs=-1
+    )
+    return Pipeline([("preprocessor", pre), ("model", model)])
 
 
 def build_pipeline(n_estimators: int = 500) -> Pipeline:
-    num = Pipeline([("imputer", SimpleImputer(strategy="median"))])
-    cat = Pipeline([("imputer", SimpleImputer(strategy="most_frequent")), ("onehot", OneHotEncoder(handle_unknown="ignore"))])
-    pre = ColumnTransformer([("num", num, NUMERIC_FEATURES), ("cat", cat, CATEGORICAL_FEATURES)])
-    model = RandomForestClassifier(n_estimators=n_estimators, class_weight="balanced", min_samples_leaf=4, random_state=42, n_jobs=-1)
-    return Pipeline([("preprocessor", pre), ("model", model)])
+    return _build_pipeline(NUMERIC_FEATURES, n_estimators)
 
 
 def target(df: pd.DataFrame, name: str) -> pd.Series:
@@ -89,17 +128,36 @@ def fit_secondary_models(data_path: str | Path) -> dict[str, Pipeline]:
     return models
 
 
-def transformed_names(pipe: Pipeline) -> list[str]:
+def fit_vas_improvement_model(data_path: str | Path) -> Pipeline:
+    """Fit VAS improvement classifier on complete paired VAS records.
+
+    User-confirmed orientation: 0=no pain, 100=worst pain.
+    Improvement is therefore any reduction at last visit.
+    """
+    df = pd.read_csv(data_path)
+    pre = pd.to_numeric(df["pre_comparison_analog"], errors="coerce")
+    post = pd.to_numeric(df["lv_comparison_analog"], errors="coerce")
+    keep = pre.notna() & post.notna()
+    analysis = df.loc[keep].copy()
+    analysis["pre_vas"] = pre.loc[keep].astype(float)
+    y = (post.loc[keep].astype(float) < pre.loc[keep].astype(float)).astype(int)
+    model = _build_pipeline(VAS_NUMERIC_FEATURES, 500)
+    model.fit(analysis[VAS_FEATURES], y)
+    return model
+
+
+def transformed_names(pipe: Pipeline, numeric_features: list[str] | None = None) -> list[str]:
+    numeric_features = numeric_features or NUMERIC_FEATURES
     pre = pipe.named_steps["preprocessor"]
     oh = pre.named_transformers_["cat"].named_steps["onehot"]
-    return NUMERIC_FEATURES + list(oh.get_feature_names_out(CATEGORICAL_FEATURES))
+    return numeric_features + list(oh.get_feature_names_out(CATEGORICAL_FEATURES))
 
 
-def local_shap(pipe: Pipeline, row: pd.DataFrame) -> pd.DataFrame:
+def _local_shap(pipe: Pipeline, row: pd.DataFrame, feature_names: list[str], numeric_features: list[str]) -> pd.DataFrame:
     pre = pipe.named_steps["preprocessor"]
     model = pipe.named_steps["model"]
-    xt = pre.transform(row[FEATURES])
-    names = transformed_names(pipe)
+    xt = pre.transform(row[feature_names])
+    names = transformed_names(pipe, numeric_features)
     sv = shap.TreeExplainer(model).shap_values(xt)
     if isinstance(sv, list):
         arr = np.asarray(sv[1] if len(sv) > 1 else sv[0])
@@ -118,4 +176,14 @@ def local_shap(pipe: Pipeline, row: pd.DataFrame) -> pd.DataFrame:
                 base = c
                 break
         collapsed[PRETTY.get(base, base)] += float(value)
-    return pd.DataFrame([{"feature":k,"shap_value":v} for k,v in collapsed.items()]).sort_values("shap_value", key=lambda s:s.abs(), ascending=False)
+    return pd.DataFrame([{"feature":k,"shap_value":v} for k,v in collapsed.items()]).sort_values(
+        "shap_value", key=lambda s:s.abs(), ascending=False
+    )
+
+
+def local_shap(pipe: Pipeline, row: pd.DataFrame) -> pd.DataFrame:
+    return _local_shap(pipe, row, FEATURES, NUMERIC_FEATURES)
+
+
+def vas_local_shap(pipe: Pipeline, row: pd.DataFrame) -> pd.DataFrame:
+    return _local_shap(pipe, row, VAS_FEATURES, VAS_NUMERIC_FEATURES)
