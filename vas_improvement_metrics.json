@@ -1,0 +1,19 @@
+{
+  "definition": "postoperative VAS < preoperative VAS (0=no pain, 100=worst pain; any reduction)",
+  "validation_scheme": "StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=42) by patient_id",
+  "n_encounters": 253,
+  "n_unique_patients": 251,
+  "improved_n": 27,
+  "improved_pct": 10.6719367589,
+  "roc_auc": 0.6196329072,
+  "auc_95ci_patient_cluster_bootstrap": [0.4901017830, 0.7381854018],
+  "average_precision": 0.2683876283,
+  "accuracy": 0.8814229249,
+  "sensitivity": 0.2222222222,
+  "specificity": 0.9601769912,
+  "precision": 0.4,
+  "f1": 0.2857142857,
+  "brier": 0.1243185659,
+  "decision_threshold": 0.5,
+  "confusion_matrix": [[217, 9], [21, 6]]
+}
