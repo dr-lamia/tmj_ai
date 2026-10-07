@@ -164,6 +164,193 @@ def show_local(model, row, label, vas=False):
         st.info(f"SHAP explanation unavailable: {e}")
 
 
+def _probability_band(p):
+    if p >= 0.70:
+        return "relatively favorable"
+    if p >= 0.50:
+        return "intermediate"
+    return "cautious"
+
+
+def _patient_shap_drivers(model, row, vas=False, n=3):
+    """Return the strongest patient-level model attributions for counselling text."""
+    try:
+        d = (vas_local_shap(model, row) if vas else local_shap(model, row)).copy()
+        toward = d[d["shap_value"] > 0].head(n)["feature"].tolist()
+        away = d[d["shap_value"] < 0].head(n)["feature"].tolist()
+        return toward, away
+    except Exception:
+        return [], []
+
+
+def personalized_counselling(first, row, vas_row, primary_model, vas_model):
+    """Deterministic, evidence-weighted counselling summary.
+
+    This is intentionally not a treatment-selection rule. It translates the
+    already-displayed predictions into reproducible counselling and follow-up
+    points while preserving uncertainty from the internally validated models.
+    """
+    p_mio = float(first["probability_mio_improvement_ge_10mm"])
+    p_vas = float(first["probability_vas_improvement"])
+    p_pain = float(first["probability_joint_pain_absent"])
+    p_noise = float(first["probability_joint_noise_absent"])
+    p_med = float(first["probability_no_medication"])
+    p_diet = float(first["probability_regular_diet"])
+
+    band = _probability_band(p_mio)
+    if band == "relatively favorable":
+        summary = (
+            f"The functional forecast is relatively favorable: the model estimates a "
+            f"{p_mio*100:.1f}% probability of at least 10 mm MIO improvement. "
+            "This is the most clinically reliable prediction in the current system."
+        )
+    elif band == "intermediate":
+        summary = (
+            f"The functional forecast is intermediate: the model estimates a "
+            f"{p_mio*100:.1f}% probability of at least 10 mm MIO improvement. "
+            "Functional benefit is possible, but the prediction should be discussed together with clinical findings."
+        )
+    else:
+        summary = (
+            f"The functional forecast is cautious: the model estimates a "
+            f"{p_mio*100:.1f}% probability of at least 10 mm MIO improvement. "
+            "This should prompt careful expectation-setting rather than a treatment decision."
+        )
+
+    strengths = []
+    cautions = []
+    follow_up = []
+
+    if p_mio >= 0.65:
+        strengths.append(f"Substantial MIO improvement: {p_mio*100:.1f}% predicted probability.")
+    elif p_mio < 0.50:
+        cautions.append(f"Functional improvement is less certain ({p_mio*100:.1f}%).")
+
+    # Medication is the strongest of the secondary models (AUC ~0.818).
+    if p_med >= 0.60:
+        strengths.append(
+            f"No medication requirement: {p_med*100:.1f}% predicted probability "
+            "(strongest-performing secondary model)."
+        )
+    elif p_med < 0.45:
+        cautions.append(
+            f"Continued medication requirement may remain relevant "
+            f"(only {p_med*100:.1f}% probability of being medication-free)."
+        )
+
+    # VAS remains patient-important but statistically uncertain.
+    if p_vas >= 0.60:
+        strengths.append(
+            f"Pain-VAS improvement signal: {p_vas*100:.1f}%, but this model remains exploratory."
+        )
+    elif p_vas < 0.50:
+        cautions.append(
+            f"Pain relief is uncertain ({p_vas*100:.1f}% probability of VAS improvement); "
+            "functional improvement and pain relief should be counselled as separate outcomes."
+        )
+    else:
+        cautions.append(
+            f"Pain-VAS prediction is intermediate ({p_vas*100:.1f}%) and remains exploratory."
+        )
+
+    # Weaker secondary models are used only to identify counselling/follow-up domains.
+    if p_pain < 0.50:
+        cautions.append("Persistent joint pain should remain an explicit follow-up concern.")
+        follow_up.append("Joint pain presence and pain intensity (VAS)")
+    if p_noise < 0.50:
+        cautions.append("Persistence of joint noise remains possible.")
+        follow_up.append("Joint noise")
+    if p_diet < 0.50:
+        cautions.append("Return to a regular-consistency diet is uncertain.")
+        follow_up.append("Diet progression")
+    if p_med < 0.50:
+        follow_up.append("Medication requirement")
+    if p_mio < 0.65:
+        follow_up.append("MIO and functional gain")
+    if p_vas < 0.60:
+        follow_up.append("Pain VAS trajectory")
+
+    if not strengths:
+        strengths.append(
+            "No outcome crosses the app's predefined favorable counselling threshold; "
+            "the profile should be presented as uncertain rather than unfavorable."
+        )
+    if not cautions:
+        cautions.append(
+            "No major low-probability domain was identified, but all estimates remain internally validated research outputs."
+        )
+
+    # Preserve order while removing duplicates.
+    follow_up = list(dict.fromkeys(follow_up))
+    if not follow_up:
+        follow_up = ["MIO", "Pain VAS", "Joint symptoms", "Medication use", "Diet progression"]
+
+    func_toward, func_away = _patient_shap_drivers(primary_model, row, vas=False, n=3)
+    pain_toward, pain_away = _patient_shap_drivers(vas_model, vas_row, vas=True, n=3)
+
+    return {
+        "band": band,
+        "summary": summary,
+        "strengths": strengths,
+        "cautions": cautions,
+        "follow_up": follow_up,
+        "functional_toward": func_toward,
+        "functional_away": func_away,
+        "pain_toward": pain_toward,
+        "pain_away": pain_away,
+    }
+
+
+def render_personalized_counselling(rec):
+    st.markdown("### Personalized counselling recommendation")
+    if rec["band"] == "relatively favorable":
+        st.success(rec["summary"])
+    elif rec["band"] == "intermediate":
+        st.info(rec["summary"])
+    else:
+        st.warning(rec["summary"])
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Potential strengths**")
+        for item in rec["strengths"]:
+            st.markdown(f"- {item}")
+    with c2:
+        st.markdown("**Counselling cautions**")
+        for item in rec["cautions"]:
+            st.markdown(f"- {item}")
+
+    st.markdown("**Suggested follow-up focus**")
+    st.write(" · ".join(rec["follow_up"]))
+
+    st.markdown("**Patient-specific model-attributed factors**")
+    d1, d2 = st.columns(2)
+    with d1:
+        st.caption("Functional-response model")
+        if rec["functional_toward"]:
+            st.write("Toward improvement: " + ", ".join(rec["functional_toward"]))
+        if rec["functional_away"]:
+            st.write("Away from improvement: " + ", ".join(rec["functional_away"]))
+        if not rec["functional_toward"] and not rec["functional_away"]:
+            st.write("Patient-level SHAP attribution unavailable.")
+    with d2:
+        st.caption("VAS-improvement model")
+        if rec["pain_toward"]:
+            st.write("Toward pain improvement: " + ", ".join(rec["pain_toward"]))
+        if rec["pain_away"]:
+            st.write("Away from pain improvement: " + ", ".join(rec["pain_away"]))
+        if not rec["pain_toward"] and not rec["pain_away"]:
+            st.write("Patient-level SHAP attribution unavailable.")
+
+    st.caption(
+        "SHAP factors explain this model's prediction; they are not causal risk factors and are not treatment targets."
+    )
+    st.error(
+        "Research counselling aid only — this section does not recommend performing, withholding, "
+        "or changing arthroscopy. Treatment decisions require full clinical assessment and clinician judgment."
+    )
+
+
 st.set_page_config(page_title="TMJ AI Studio", page_icon="🦷", layout="wide")
 clean = load_clean()
 try:
@@ -257,6 +444,11 @@ with assessment:
             m = METRICS[cfg['summary']]
             col.metric(cfg['label'], f"{p*100:.1f}%")
             col.caption(f"AUC {m['auc']:.3f} · {evidence(m['auc'])}")
+
+        rec = personalized_counselling(
+            first, row.iloc[[0]], vas_row.iloc[[0]], primary_model, vas_model
+        )
+        render_personalized_counselling(rec)
 
         st.markdown("### Exploratory exact MIO")
         c3,c4 = st.columns(2)
