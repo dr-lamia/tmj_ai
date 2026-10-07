@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <defs>
+    <style>
+      .title{font:700 36px Arial;fill:#fff}.subtitle{font:400 20px Arial;fill:#e8f3ff}
+      .h{font:700 24px Arial;fill:#12315a}.sh{font:700 19px Arial;fill:#12315a}
+      .t{font:400 16px Arial;fill:#23364d}.small{font:400 14px Arial;fill:#334a62}
+      .metric{font:700 18px Arial;fill:#0b4677}.warn{font:700 14px Arial;fill:#8b3a00}
+    </style>
+    <linearGradient id="top" x1="0" x2="1"><stop stop-color="#0b4f84"/><stop offset="1" stop-color="#173d70"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-opacity=".14"/></filter>
+  </defs>
+  <rect width="1600" height="980" fill="#f8fbff"/>
+  <rect x="20" y="18" rx="18" ry="18" width="1560" height="82" fill="url(#top)"/>
+  <text x="55" y="60" class="title">TMJ Arthroscopy AI Recommendation System</text>
+  <text x="55" y="88" class="subtitle">Explainable postoperative outcome forecasting to support clinician-led preoperative counselling</text>
+
+  <!-- Panel 1 -->
+  <g filter="url(#shadow)">
+    <rect x="28" y="125" width="285" height="590" rx="20" fill="#e7f4ff" stroke="#8bc7f2"/>
+    <circle cx="60" cy="160" r="24" fill="#2d80c9"/><text x="53" y="168" class="h" fill="#fff">1</text>
+    <text x="92" y="168" class="h">Patient Input</text>
+    <text x="48" y="210" class="sh">Routine preoperative variables</text>
+    <text x="52" y="246" class="t">• Age and sex</text>
+    <text x="52" y="278" class="t">• TMJ site (LT / RT / bilateral)</text>
+    <text x="52" y="310" class="t">• Baseline MIO (mm)</text>
+    <text x="52" y="342" class="t">• Directional limitation</text>
+    <text x="52" y="374" class="t">• Joint noise</text>
+    <text x="52" y="406" class="t">• Muscle pain</text>
+    <text x="52" y="438" class="t">• Joint pain</text>
+    <text x="52" y="470" class="t">• Diet consistency</text>
+    <text x="52" y="502" class="t">• Medication status</text>
+    <line x1="48" y1="535" x2="292" y2="535" stroke="#94b9d8"/>
+    <text x="48" y="568" class="sh">Optional research field</text>
+    <text x="52" y="600" class="t">Pain VAS (0 = no pain,</text>
+    <text x="52" y="626" class="t">100 = worst pain)</text>
+    <text x="48" y="675" class="small">Historical dataset:</text>
+    <text x="48" y="700" class="metric">511 encounters · 495 patients</text>
+  </g>
+
+  <!-- arrow -->
+  <polygon points="326,404 356,424 326,444" fill="#287bbf"/>
+
+  <!-- Panel 2 -->
+  <g filter="url(#shadow)">
+    <rect x="360" y="125" width="290" height="590" rx="20" fill="#f1ebff" stroke="#b6a1ed"/>
+    <circle cx="392" cy="160" r="24" fill="#7554c7"/><text x="385" y="168" class="h" fill="#fff">2</text>
+    <text x="424" y="168" class="h">AI Prediction Engine</text>
+    <rect x="385" y="205" width="240" height="76" rx="12" fill="#fff" stroke="#c9b9f2"/>
+    <text x="410" y="238" class="sh">Random Forest</text>
+    <text x="410" y="263" class="small">Primary model family</text>
+    <rect x="385" y="294" width="240" height="70" rx="12" fill="#fff7ed" stroke="#f4bd7c"/>
+    <text x="410" y="325" class="sh">XGBoost benchmark</text>
+    <text x="410" y="350" class="small">No robust superiority</text>
+    <rect x="385" y="380" width="240" height="98" rx="12" fill="#f7fbff" stroke="#b8d7ef"/>
+    <text x="410" y="412" class="sh">Patient-grouped validation</text>
+    <text x="410" y="440" class="t">3-fold grouped CV</text>
+    <text x="410" y="466" class="small">Prevents repeat-patient leakage</text>
+    <rect x="385" y="495" width="240" height="132" rx="12" fill="#e9fbf4" stroke="#9bd7bc"/>
+    <text x="410" y="528" class="sh">Explainability (SHAP)</text>
+    <text x="410" y="559" class="t">• Global importance</text>
+    <text x="410" y="588" class="t">• Patient-level factors</text>
+    <text x="410" y="617" class="small">Attribution ≠ causation</text>
+    <text x="390" y="677" class="small">Output probabilities are internal-</text>
+    <text x="390" y="700" class="small">validation estimates, not diagnoses.</text>
+  </g>
+
+  <polygon points="663,404 693,424 663,444" fill="#7554c7"/>
+
+  <!-- Panel 3 -->
+  <g filter="url(#shadow)">
+    <rect x="698" y="125" width="370" height="590" rx="20" fill="#fff8e2" stroke="#f1cb69"/>
+    <circle cx="730" cy="160" r="24" fill="#d59516"/><text x="723" y="168" class="h" fill="#fff">3</text>
+    <text x="762" y="168" class="h">Predicted Outcomes</text>
+    <rect x="723" y="205" width="320" height="88" rx="14" fill="#ffe5e5" stroke="#ef9b9b"/>
+    <text x="742" y="236" class="sh">Primary: ≥10-mm MIO improvement</text>
+    <text x="742" y="265" class="metric">AUC 0.869 (95% CI 0.836–0.899)</text>
+
+    <text x="724" y="330" class="sh">Secondary favorable outcomes</text>
+    <rect x="724" y="347" width="319" height="54" rx="10" fill="#eefbf5"/>
+    <text x="742" y="380" class="t">No joint pain</text><text x="960" y="380" class="metric">AUC 0.580</text>
+    <rect x="724" y="410" width="319" height="54" rx="10" fill="#fff1e9"/>
+    <text x="742" y="443" class="t">No joint noise</text><text x="960" y="443" class="metric">AUC 0.625</text>
+    <rect x="724" y="473" width="319" height="54" rx="10" fill="#e8f4ff"/>
+    <text x="742" y="506" class="t">No medication required</text><text x="960" y="506" class="metric">AUC 0.818</text>
+    <rect x="724" y="536" width="319" height="54" rx="10" fill="#f4ecff"/>
+    <text x="742" y="569" class="t">Regular-consistency diet</text><text x="960" y="569" class="metric">AUC 0.584</text>
+
+    <text x="724" y="627" class="sh">Exploratory continuous output</text>
+    <text x="742" y="658" class="t">Exact postoperative MIO (mm)</text>
+    <text x="742" y="686" class="small">MAE 4.77 mm · RMSE 6.60 · R² 0.024</text>
+  </g>
+
+  <polygon points="1080,404 1110,424 1080,444" fill="#d59516"/>
+
+  <!-- Panel 4 -->
+  <g filter="url(#shadow)">
+    <rect x="1115" y="125" width="457" height="590" rx="20" fill="#e9fbf4" stroke="#8cd6b7"/>
+    <circle cx="1147" cy="160" r="24" fill="#1c9b67"/><text x="1140" y="168" class="h" fill="#fff">4</text>
+    <text x="1179" y="168" class="h">Explainable Clinical Translation</text>
+    <text x="1142" y="214" class="sh">Patient-specific interpretation</text>
+    <text x="1145" y="248" class="t">1. Show probability of functional response</text>
+    <text x="1145" y="279" class="t">2. Display secondary outcome probabilities</text>
+    <text x="1145" y="310" class="t">3. Show factors increasing/decreasing each estimate</text>
+    <text x="1145" y="341" class="t">4. Put model performance beside each output</text>
+
+    <rect x="1140" y="370" width="407" height="138" rx="14" fill="#fff" stroke="#9acdb8"/>
+    <text x="1160" y="402" class="sh">Clinician recommendation layer</text>
+    <text x="1160" y="434" class="t">• Discuss realistic expected functional recovery</text>
+    <text x="1160" y="464" class="t">• Explain uncertainty and weak secondary models</text>
+    <text x="1160" y="494" class="t">• Support shared decision-making and counselling</text>
+
+    <rect x="1140" y="527" width="407" height="132" rx="14" fill="#fff6ec" stroke="#f1bb77"/>
+    <text x="1160" y="559" class="sh">Safety boundary</text>
+    <text x="1160" y="590" class="t">AI supports — does not replace — clinician judgment.</text>
+    <text x="1160" y="619" class="small">Not a diagnostic tool · not an autonomous treatment</text>
+    <text x="1160" y="643" class="small">recommender · not a clinically validated medical device.</text>
+
+    <text x="1140" y="694" class="warn">Postoperative VAS prediction is suppressed pending source-record reconciliation.</text>
+  </g>
+
+  <!-- bottom workflow -->
+  <rect x="28" y="748" width="1544" height="202" rx="22" fill="#eaf4ff" stroke="#8ebee5"/>
+  <text x="55" y="788" class="h">Recommendation-system logic</text>
+  <rect x="70" y="825" width="270" height="78" rx="14" fill="#fff"/><text x="104" y="857" class="sh">Preoperative assessment</text><text x="103" y="885" class="small">10 clinical variables + optional VAS</text>
+  <polygon points="355,854 385,869 355,884" fill="#287bbf"/>
+  <rect x="395" y="825" width="270" height="78" rx="14" fill="#fff"/><text x="438" y="857" class="sh">AI outcome forecast</text><text x="430" y="885" class="small">Primary + secondary probabilities</text>
+  <polygon points="680,854 710,869 680,884" fill="#287bbf"/>
+  <rect x="720" y="825" width="270" height="78" rx="14" fill="#fff"/><text x="760" y="857" class="sh">SHAP explanation</text><text x="748" y="885" class="small">Key factors + uncertainty context</text>
+  <polygon points="1005,854 1035,869 1005,884" fill="#287bbf"/>
+  <rect x="1045" y="825" width="455" height="78" rx="14" fill="#fff"/><text x="1100" y="857" class="sh">Clinician-led counselling and shared decision-making</text><text x="1115" y="885" class="small">Individualised discussion — not automated treatment selection</text>
+</svg>
