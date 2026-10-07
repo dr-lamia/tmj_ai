@@ -49,18 +49,27 @@ A Random Forest regression estimates last-visit postoperative MIO:
 
 The exact-MIO estimate is therefore labelled **exploratory**. The probability of >=10-mm MIO improvement remains the principal functional-prognosis output.
 
-### Pain VAS
+### Pain VAS improvement prediction
 
-The source contains paired pain Visual Analogue Scale fields confirmed as:
-- **0 = no pain**
-- **100 = worst pain**
+Pain improvement is now an explicit patient-centered output in the app.
 
-In the direct paired field, mean VAS increased from about 46.9 preoperatively to 73.5 at last visit. This direction is discordant with the binary joint-pain field, and final-VAS regression was poor. The active app therefore records optional preoperative VAS for research context but **does not generate a patient-level postoperative VAS prediction**.
+- Scale used for the analysis: **0 = no pain, 100 = worst pain**
+- Operational improvement endpoint: **last-visit VAS < preoperative VAS** (any reduction)
+- Paired VAS cohort: **253 encounters / 251 patients**
+- Improved: **27 encounters (10.7%)**
+- Patient-grouped AUC: **0.620** (95% CI 0.490-0.738)
+- Sensitivity: 0.222
+- Specificity: 0.960
+- Brier score: 0.124
+
+The interface displays the **predicted probability of postoperative VAS improvement** and a SHAP explanation. Because discrimination is limited and the confidence interval includes 0.50, this output is explicitly labelled exploratory and must not be interpreted as a validated treatment recommendation.
+
+The exact final-VAS regression remains a separate exploratory analysis and is not used as the principal pain output.
 
 ## Explainability
 
 The app provides:
-- global SHAP feature importance for the primary and secondary classifiers;
+- global SHAP feature importance for the functional-response, VAS-improvement, and secondary classifiers;
 - patient-level SHAP explanations for the latest assessment;
 - plain-language statements describing variables that push predictions toward or away from each favorable outcome.
 
@@ -72,7 +81,7 @@ Repeated encounters from the same patient were kept within the same validation f
 
 ## Required patient inputs
 
-The active models use ten preoperative variables:
+The functional and secondary models use ten preoperative variables. The VAS-improvement model additionally uses baseline pain VAS:
 - age
 - sex
 - affected site
@@ -83,6 +92,7 @@ The active models use ten preoperative variables:
 - joint noise
 - muscle pain
 - joint pain
+- preoperative pain VAS (for the VAS-improvement model)
 
 ## Run locally
 
