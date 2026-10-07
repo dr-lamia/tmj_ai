@@ -9,13 +9,35 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from regression_utils import load_or_fit_regression_model, predict_postop_mio
-from secondary_outcomes import (
-    FEATURES, NUMERIC_FEATURES, CATEGORICAL_FEATURES,
-    OUTCOMES, METRICS, GLOBAL_SHAP, VAS,
-    VAS_IMPROVEMENT_METRICS, VAS_GLOBAL_SHAP,
-    fit_secondary_models, fit_vas_improvement_model,
-    local_shap, vas_local_shap,
+
+# Streamlit can rerun app.py in the same Python process after a Git pull.
+# If secondary_outcomes.py changed, Python may still hold the previous module
+# in memory. Reload it only when the new VAS API is not yet visible.
+import importlib
+import secondary_outcomes as _secondary_outcomes
+
+_REQUIRED_SECONDARY_API = (
+    "VAS_IMPROVEMENT_METRICS",
+    "VAS_GLOBAL_SHAP",
+    "fit_vas_improvement_model",
+    "vas_local_shap",
 )
+if not all(hasattr(_secondary_outcomes, name) for name in _REQUIRED_SECONDARY_API):
+    _secondary_outcomes = importlib.reload(_secondary_outcomes)
+
+FEATURES = _secondary_outcomes.FEATURES
+NUMERIC_FEATURES = _secondary_outcomes.NUMERIC_FEATURES
+CATEGORICAL_FEATURES = _secondary_outcomes.CATEGORICAL_FEATURES
+OUTCOMES = _secondary_outcomes.OUTCOMES
+METRICS = _secondary_outcomes.METRICS
+GLOBAL_SHAP = _secondary_outcomes.GLOBAL_SHAP
+VAS = _secondary_outcomes.VAS
+VAS_IMPROVEMENT_METRICS = _secondary_outcomes.VAS_IMPROVEMENT_METRICS
+VAS_GLOBAL_SHAP = _secondary_outcomes.VAS_GLOBAL_SHAP
+fit_secondary_models = _secondary_outcomes.fit_secondary_models
+fit_vas_improvement_model = _secondary_outcomes.fit_vas_improvement_model
+local_shap = _secondary_outcomes.local_shap
+vas_local_shap = _secondary_outcomes.vas_local_shap
 
 BASE = Path(__file__).parent
 
