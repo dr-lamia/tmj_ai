@@ -4,6 +4,12 @@ TMJ AI Studio is a clinician-facing **research decision-support prototype** for 
 
 The current application is organized around **clinically observable postoperative outcomes**. Wilkes-stage prediction has been removed from the active Streamlit app.
 
+## Recommendation-system infographic
+
+![TMJ Arthroscopy AI Recommendation System](figures/TMJ_AI_recommendation_system.svg)
+
+The figure summarizes the intended translational workflow: routine preoperative patient information → patient-grouped machine-learning predictions → SHAP explanation → clinician-led counselling and shared decision-making. The system is designed to **support, not replace, clinical judgment**.
+
 ## Current prediction framework
 
 ### Primary outcome
