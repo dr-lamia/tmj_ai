@@ -29,7 +29,7 @@ Because this is a change-score endpoint, baseline MIO is mathematically related 
 
 ### Secondary postoperative outcomes
 
-The same ten routine preoperative clinical variables are used for four secondary exploratory models:
+The study has **five secondary exploratory outcomes**: pain VAS improvement plus four additional clinically observable postoperative outcomes. The four non-VAS secondary models use the same ten routine preoperative clinical variables:
 
 | Outcome | AUC | Interpretation |
 |---|---:|---|
@@ -65,6 +65,20 @@ Pain improvement is now an explicit patient-centered output in the app.
 The interface displays the **predicted probability of postoperative VAS improvement** and a SHAP explanation. Because discrimination is limited and the confidence interval includes 0.50, this output is explicitly labelled exploratory and must not be interpreted as a validated treatment recommendation.
 
 The exact final-VAS regression remains a separate exploratory analysis and is not used as the principal pain output.
+
+## Personalized counselling recommendation
+
+After a patient assessment, the app now translates the multidimensional predictions into a **deterministic personalized counselling profile**. This layer does not use a generative model and does not create new medical advice. It summarizes the existing model outputs using fixed, transparent rules.
+
+The counselling panel includes:
+- an overall functional forecast anchored to the primary >=10-mm MIO endpoint;
+- patient-specific potential strengths and counselling cautions;
+- special weighting of the no-medication model as the strongest-performing secondary classifier;
+- cautious interpretation of VAS, joint-pain, joint-noise, and diet predictions according to their internal-validation performance;
+- suggested postoperative follow-up domains;
+- patient-level SHAP factors that push the functional and VAS predictions toward or away from improvement.
+
+The probability bands used for display are **communication thresholds, not validated clinical decision thresholds**. The panel is deliberately prohibited from recommending whether arthroscopy should be performed, withheld, or changed. It is intended for clinician-led expectation setting and shared decision-making only.
 
 ## Explainability
 
